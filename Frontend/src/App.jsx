@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
+import Login from "./Pages/Login";
+import Dashboard from "./Pages/Dashboard";
 import Landing from "./Pages/Landing";
 
 // Protected Route Component
