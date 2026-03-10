@@ -9,6 +9,10 @@ import axios from "axios";
 export const registerUser = async (req, res) => {
     const { name, email, password } = req.body;
 
+    if (!password || password.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters long" });
+    }
+
     try {
         const userExists = await User.findOne({ email });
 
@@ -86,53 +90,7 @@ export const authUser = async (req, res) => {
     }
 };
 
-// @desc    Google OAuth
-// @route   POST /api/auth/google
-// @access  Public
-export const googleAuth = async (req, res) => {
-    const { credential } = req.body; // Token from Google Sign-In on frontend
-
-    try {
-        // Using google auth library to verify token (or we can just decode the JWT if we trust frontend, but verifying is safer)
-        const ticket = await axios.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-        const payload = ticket.data;
-
-        if (!payload || !payload.email) {
-            return res.status(400).json({ error: "Invalid Google token" });
-        }
-
-        const { email, name, picture } = payload;
-        let user = await User.findOne({ email });
-
-        if (user) {
-            if (user.provider !== "google") {
-                return res.status(400).json({ error: `Please log in using ${user.provider}` });
-            }
-            user.lastLogin = Date.now();
-            await user.save();
-        } else {
-            user = await User.create({
-                name,
-                email,
-                provider: "google",
-                avatar: picture,
-            });
-        }
-
-        generateToken(res, user._id);
-        res.status(200).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            provider: user.provider,
-            avatar: user.avatar,
-        });
-
-    } catch (error) {
-        console.error("Google Auth Error:", error.message);
-        res.status(500).json({ error: "Google authentication failed" });
-    }
-};
+// Removed Google OAuth
 
 // @desc    GitHub OAuth
 // @route   POST /api/auth/github

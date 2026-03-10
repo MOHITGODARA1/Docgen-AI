@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String }, // Optional, only for email providers
     provider: {
       type: String,
-      enum: ["email", "google", "github"],
+      enum: ["email", "github"],
       default: "email",
     },
     avatar: { type: String, default: "" },
