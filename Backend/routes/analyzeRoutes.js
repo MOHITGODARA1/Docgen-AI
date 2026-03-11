@@ -1,13 +1,17 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
+import {
+    analyzeRepository,
+    getAnalysisHistory,
+    getAnalysisById,
+    deleteAnalysis
+} from "../controllers/analysisController.js";
 
 const router = express.Router();
 
-router.post("/", protect, (req, res) => {
-    res.status(200).json({
-        message: "Analysis successful",
-        repoData: "Mock repository details analyzed successfully for " + req.user.name,
-    });
-});
+router.post("/", protect, analyzeRepository);
+router.get("/history", protect, getAnalysisHistory);
+router.get("/:id", protect, getAnalysisById);
+router.delete("/:id", protect, deleteAnalysis);
 
 export default router;

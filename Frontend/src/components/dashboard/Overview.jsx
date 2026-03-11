@@ -1,8 +1,11 @@
-import { useState } from "react";
-import { Activity, Clock, FileText, CheckCircle, ChevronRight, Github, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Activity, Clock, FileText, CheckCircle, ChevronRight, Github, ExternalLink, Trash2 } from "lucide-react";
+import { api } from "../../context/AuthContext";
 
-export default function Overview({ onAnalyze, isAnalyzing, error }) {
+export default function Overview({ onAnalyze, isAnalyzing, error, onViewReport }) {
     const [repoUrl, setRepoUrl] = useState("");
+    const [historyData, setHistoryData] = useState([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
     const handleAnalyze = (e) => {
         e.preventDefault();
@@ -11,12 +14,31 @@ export default function Overview({ onAnalyze, isAnalyzing, error }) {
         }
     };
 
-    // Dummy data for history
-    const historyData = [
-        { id: 1, name: "facebook/react", owner: "facebook", date: "2 hours ago", status: "Success" },
-        { id: 2, name: "vercel/next.js", owner: "vercel", date: "Yesterday", status: "Success" },
-        { id: 3, name: "tailwindlabs/tailwindcss", owner: "tailwindlabs", date: "3 days ago", status: "Success" },
-    ];
+    useEffect(() => {
+        fetchHistory();
+    }, []);
+
+    const fetchHistory = async () => {
+        try {
+            const { data } = await api.get("/analyze/history");
+            setHistoryData(data);
+        } catch (err) {
+            console.error("Failed to fetch history:", err);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this report?")) return;
+        try {
+            await api.delete(`/analyze/${id}`);
+            setHistoryData(prev => prev.filter(item => item._id !== id));
+        } catch (err) {
+            console.error("Failed to delete report:", err);
+            alert("Failed to delete report");
+        }
+    };
 
     return (
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -74,9 +96,9 @@ export default function Overview({ onAnalyze, isAnalyzing, error }) {
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                    { label: "Total Repos Analyzed", value: "1,248", icon: Activity, color: "text-indigo-400", bg: "bg-indigo-500/10" },
-                    { label: "Docs Generated", value: "8,392", icon: FileText, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-                    { label: "Last Analysis Time", value: "24.5s", icon: Clock, color: "text-blue-400", bg: "bg-blue-500/10" },
+                    { label: "Total Repos Analyzed", value: historyData.length || "0", icon: Activity, color: "text-indigo-400", bg: "bg-indigo-500/10" },
+                    { label: "Docs Generated", value: (historyData.length * 4) || "0", icon: FileText, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+                    { label: "Last Analysis Time", value: historyData.length > 0 ? new Date(historyData[0].createdAt).toLocaleDateString() : "Never", icon: Clock, color: "text-blue-400", bg: "bg-blue-500/10" },
                 ].map((stat, i) => (
                     <div key={i} className="bg-[#111113] border border-gray-800 rounded-xl p-6 flex items-center gap-5 hover:border-gray-700 transition-colors">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} ${stat.color}`}>
@@ -107,27 +129,46 @@ export default function Overview({ onAnalyze, isAnalyzing, error }) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800/50">
-                            {historyData.map((repo) => (
-                                <tr key={repo.id} className="hover:bg-gray-800/20 transition-colors">
-                                    <td className="px-6 py-4 text-white font-medium flex items-center gap-2">
-                                        <Github className="w-4 h-4 text-gray-500" />
-                                        {repo.name}
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-400">{repo.owner}</td>
-                                    <td className="px-6 py-4 text-gray-400">{repo.date}</td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400">
-                                            <CheckCircle className="w-3.5 h-3.5" />
-                                            {repo.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium text-xs transition-colors">
-                                            View Report <ExternalLink className="w-3.5 h-3.5" />
-                                        </button>
-                                    </td>
+                            {isLoadingHistory ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-4 text-center text-gray-500">Loading history...</td>
                                 </tr>
-                            ))}
+                            ) : historyData.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-4 text-center text-gray-500">No previous analysis found.</td>
+                                </tr>
+                            ) : (
+                                historyData.map((repo) => (
+                                    <tr key={repo._id} className="hover:bg-gray-800/20 transition-colors">
+                                        <td className="px-6 py-4 text-white font-medium flex items-center gap-2">
+                                            <Github className="w-4 h-4 text-gray-500" />
+                                            {repo.repoName}
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-400">{repo.repositoryUrl.replace('https://github.com/', '')}</td>
+                                        <td className="px-6 py-4 text-gray-400">{new Date(repo.createdAt).toLocaleString()}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400">
+                                                <CheckCircle className="w-3.5 h-3.5" />
+                                                Success
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button 
+                                                onClick={() => onViewReport(repo._id)}
+                                                className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium text-xs transition-colors mr-3"
+                                            >
+                                                View Report <ExternalLink className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(repo._id)}
+                                                className="inline-flex items-center gap-1 text-red-500 hover:text-red-400 font-medium text-xs transition-colors"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
