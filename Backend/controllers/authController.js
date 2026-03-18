@@ -92,7 +92,7 @@ export const logoutUser = (req, res) => {
         httpOnly: true,
         expires: new Date(0),
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         path: "/",
     });
     res.status(200).json({ message: "Logged out successfully" });
