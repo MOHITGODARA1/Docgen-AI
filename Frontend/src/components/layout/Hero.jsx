@@ -1,6 +1,10 @@
 import React from "react";
 
+import { useNavigate } from "react-router-dom";
+
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="relative min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-center px-6 pt-32 pb-24 overflow-hidden">
       {/* Dot grid background */}
@@ -31,15 +35,18 @@ const Hero = () => {
       </p>
 
       {/* Input */}
-      <div className="relative flex w-full max-w-[590px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900 focus-within:border-blue-500 transition-colors duration-200">
+      <form 
+        onSubmit={(e) => { e.preventDefault(); navigate("/login"); }}
+        className="relative flex w-full max-w-[590px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900 focus-within:border-blue-500 transition-colors duration-200"
+      >
         <input
           className="flex-1 bg-transparent outline-none text-zinc-300 placeholder-zinc-600 text-sm px-5 py-4"
           placeholder="github.com/username/repository"
         />
-        <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 transition-colors duration-150 whitespace-nowrap">
+        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 transition-colors duration-150 whitespace-nowrap">
           Analyze
         </button>
-      </div>
+      </form>
 
       <p className="relative mt-5 text-xs text-zinc-700">
         Works with any public GitHub repository

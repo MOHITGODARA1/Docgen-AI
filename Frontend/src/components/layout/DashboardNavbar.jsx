@@ -38,7 +38,7 @@ export default function DashboardNavbar() {
                     )}
                     <div className="flex flex-col hidden sm:flex">
                         <span className="text-white text-sm font-medium leading-none">{user?.name}</span>
-                        <span className="text-gray-500 text-[10px] capitalize font-medium">{user?.provider} User</span>
+                        <span className="text-gray-500 text-[10px] capitalize font-medium">User Account</span>
                     </div>
                 </div>
 

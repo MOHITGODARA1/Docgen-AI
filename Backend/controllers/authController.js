@@ -9,7 +9,11 @@ import axios from "axios";
 export const registerUser = async (req, res) => {
     const { name, email, password } = req.body;
 
-    if (!password || password.length < 8) {
+    if (!name || !email || !password) {
+        return res.status(400).json({ error: "Please fill all fields" });
+    }
+
+    if (password.length < 8) {
         return res.status(400).json({ error: "Password must be at least 8 characters long" });
     }
 
@@ -17,10 +21,7 @@ export const registerUser = async (req, res) => {
         const userExists = await User.findOne({ email });
 
         if (userExists) {
-            if (userExists.provider !== "email") {
-                return res.status(400).json({ error: `You previously signed up with ${userExists.provider}. Please log in with that provider.` });
-            }
-            return res.status(400).json({ error: "User already exists" });
+            return res.status(400).json({ error: "User already exists with this email" });
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -30,24 +31,19 @@ export const registerUser = async (req, res) => {
             name,
             email,
             password: hashedPassword,
-            provider: "email",
         });
 
-        if (user) {
-            generateToken(res, user._id);
-            res.status(201).json({
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                provider: user.provider,
-                avatar: user.avatar,
-            });
-        } else {
-            res.status(400).json({ error: "Invalid user data" });
-        }
+        generateToken(res, user._id);
+
+        res.status(201).json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar,
+        });
     } catch (error) {
         console.error("Register Error:", error);
-        res.status(500).json({ error: "Server error" });
+        res.status(500).json({ error: "Server error during registration" });
     }
 };
 
@@ -57,48 +53,75 @@ export const registerUser = async (req, res) => {
 export const authUser = async (req, res) => {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+        return res.status(400).json({ error: "Please provide both email and password" });
+    }
+
     try {
         const user = await User.findOne({ email });
 
-        if (!user) {
+        if (!user || !user.password) {
             return res.status(401).json({ error: "Invalid email or password" });
-        }
-
-        if (user.provider !== "email") {
-            return res.status(401).json({ error: `Please log in using ${user.provider}` });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
 
-        if (isMatch) {
-            user.lastLogin = Date.now();
-            await user.save();
-            generateToken(res, user._id);
-            res.status(200).json({
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                provider: user.provider,
-                avatar: user.avatar,
-            });
-        } else {
-            res.status(401).json({ error: "Invalid email or password" });
+        if (!isMatch) {
+            return res.status(401).json({ error: "Invalid email or password" });
         }
+
+        generateToken(res, user._id);
+
+        res.status(200).json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar,
+        });
     } catch (error) {
         console.error("Login Error:", error);
-        res.status(500).json({ error: "Server error" });
+        res.status(500).json({ error: "Server error during login" });
     }
 };
 
-// Removed Google OAuth
+// @desc    Logout user / clear cookie
+// @route   GET /api/auth/logout // Note: User requested GET
+// @access  Public
+export const logoutUser = (req, res) => {
+    res.cookie("jwt", "", {
+        httpOnly: true,
+        expires: new Date(0),
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+    });
+    res.status(200).json({ message: "Logged out successfully" });
+};
 
-// @desc    GitHub OAuth
+// @desc    Check auth status / Get current user
+// @route   GET /api/auth/me
+// @access  Private
+export const getMe = async (req, res) => {
+    res.status(200).json({
+        _id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        avatar: req.user.avatar,
+    });
+};
+
+// @desc    GitHub OAuth Callback processing
 // @route   POST /api/auth/github
 // @access  Public
 export const githubAuth = async (req, res) => {
-    const { code } = req.body; // Code from Github redirect
+    const { code } = req.body; 
+
+    if (!code) {
+        return res.status(400).json({ error: "Authorization code missing" });
+    }
 
     try {
+        // Exchange code for access token
         const tokenResponse = await axios.post("https://github.com/login/oauth/access_token", {
             client_id: process.env.GITHUB_CLIENT_ID,
             client_secret: process.env.GITHUB_CLIENT_SECRET,
@@ -122,7 +145,7 @@ export const githubAuth = async (req, res) => {
             }
         });
 
-        // Get User emails from Github since main email might be private
+        // Get User emails from Github 
         const emailsResponse = await axios.get("https://api.github.com/user/emails", {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -133,34 +156,39 @@ export const githubAuth = async (req, res) => {
         const primaryEmailObj = emailsResponse.data.find(e => e.primary);
         const email = primaryEmailObj ? primaryEmailObj.email : githubUser.email;
         const name = githubUser.name || githubUser.login;
+        const githubId = githubUser.id.toString();
 
         if (!email) {
             return res.status(400).json({ error: "No email associated with this GitHub account" });
         }
 
-        let user = await User.findOne({ email });
+        let user = await User.findOne({ githubId });
 
-        if (user) {
-            if (user.provider !== 'github') {
-                return res.status(400).json({ error: `Please log in using ${user.provider}` });
+        if (!user) {
+            // Check if user exists with the same email
+            user = await User.findOne({ email });
+
+            if (user) {
+                // Link account
+                user.githubId = githubId;
+                if (!user.avatar) user.avatar = githubUser.avatar_url;
+                await user.save();
+            } else {
+                user = await User.create({
+                    name,
+                    email,
+                    githubId,
+                    avatar: githubUser.avatar_url
+                });
             }
-            user.lastLogin = Date.now();
-            await user.save();
-        } else {
-            user = await User.create({
-                name,
-                email,
-                avatar: githubUser.avatar_url,
-                provider: "github"
-            });
         }
 
         generateToken(res, user._id);
+
         res.status(200).json({
             _id: user._id,
             name: user.name,
             email: user.email,
-            provider: user.provider,
             avatar: user.avatar,
         });
 
@@ -170,28 +198,10 @@ export const githubAuth = async (req, res) => {
     }
 };
 
-// @desc    Logout user / clear cookie
-// @route   POST /api/auth/logout
+// @desc    Redirect to GitHub OAuth
+// @route   GET /api/auth/github
 // @access  Public
-export const logoutUser = (req, res) => {
-    res.cookie("token", "", {
-        httpOnly: true,
-        expires: new Date(0),
-    });
-
-    res.status(200).json({ message: "Logged out successfully" });
-};
-
-// @desc    Check auth status
-// @route   GET /api/auth/check
-// @access  Private
-export const checkAuth = async (req, res) => {
-    // Access through protect middleware, so user is already verified
-    res.status(200).json({
-        _id: req.user._id,
-        name: req.user.name,
-        email: req.user.email,
-        provider: req.user.provider,
-        avatar: req.user.avatar,
-    });
+export const githubRedirect = (req, res) => {
+    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&scope=user:email`;
+    res.redirect(githubAuthUrl);
 };

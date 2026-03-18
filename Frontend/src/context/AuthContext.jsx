@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
 
-// Create Axios Instance that attaches credentials
-// eslint-disable-next-line react-refresh/only-export-components
 export const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || "http://localhost:5001/api",
     withCredentials: true,
@@ -10,7 +8,6 @@ export const api = axios.create({
 
 const AuthContext = createContext();
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
@@ -20,7 +17,7 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const checkUserAuth = async () => {
             try {
-                const { data } = await api.get("/auth/check");
+                const { data } = await api.get("/auth/me");
                 setUser(data);
             } catch (error) {
                 console.error("Auth check failed:", error);
@@ -45,17 +42,22 @@ export const AuthProvider = ({ children }) => {
         return data;
     };
 
-    const logout = async () => {
-        await api.post("/auth/logout");
-        setUser(null);
+    const externalLoginSetUser = (data) => {
+        setUser(data);
     };
 
-    const setOAuthUser = (authData) => {
-        setUser(authData);
-    }
+    const logout = async () => {
+        try {
+            await api.get("/auth/logout");
+        } catch (error) {
+            console.error("Logout failed on server:", error);
+        } finally {
+            setUser(null);
+        }
+    };
 
     return (
-        <AuthContext.Provider value={{ user, login, register, logout, setOAuthUser, loading }}>
+        <AuthContext.Provider value={{ user, login, register, logout, externalLoginSetUser, loading }}>
             {children}
         </AuthContext.Provider>
     );

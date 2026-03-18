@@ -6,8 +6,18 @@ import Features from "../components/layout/Features";
 import HowItWorks from "../components/layout/HowItWorks";
 import CTA from "../components/layout/CTA";
 import Footer from "../components/layout/Footer";
+import { useAuth } from "../context/AuthContext";
 
 const Landing = () => {
+  const { user, logout } = useAuth();
+  
+  useEffect(() => {
+    // If the user navigates back to the landing page, expire their session.
+    if (user) {
+      logout();
+    }
+  }, [user]);
+
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;

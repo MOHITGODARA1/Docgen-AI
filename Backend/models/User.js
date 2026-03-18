@@ -2,18 +2,13 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true },
     name: { type: String, required: true },
-    password: { type: String }, // Optional, only for email providers
-    provider: {
-      type: String,
-      enum: ["email", "github"],
-      default: "email",
-    },
+    email: { type: String, required: true, unique: true },
+    password: { type: String }, // Optional for GitHub users without a mapped password
+    githubId: { type: String, unique: true, sparse: true },
     avatar: { type: String, default: "" },
-    lastLogin: { type: Date, default: Date.now },
   },
-  { timestamps: true } // automatically adds createdAt and updatedAt
+  { timestamps: true }
 );
 
 const User = mongoose.model("User", userSchema);
